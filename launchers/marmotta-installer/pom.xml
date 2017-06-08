@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.apache.marmotta</groupId>
+        <artifactId>marmotta-parent</artifactId>
+        <version>3.4.0-SNAPSHOT</version>
+        <relativePath>../../parent</relativePath>
+    </parent>
+
+    <artifactId>marmotta-installer</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Apache Marmotta Installer</name>
+    <description>Builds the Apache Marmotta IzPack-based installer</description>
+
+    <properties>
+        <izpackVersion>4.3.5</izpackVersion>
+        <stagingDir>${project.build.directory}/installer</stagingDir>
+
+        <!-- these are replaced in installer files -->
+        <TOMCAT_VERSION>7.0.53</TOMCAT_VERSION>
+        <MARMOTTA_VERSION>${project.version}</MARMOTTA_VERSION>
+        <MARMOTTA_ROOT>${project.basedir}/../../</MARMOTTA_ROOT>
+    </properties>
+
+    <build>
+        <!-- this makes maven to compile and package your related izpack sources into a predictable name and location
+                 ie your target directory's ${project.artifactId}.jar, to that you can configure your izpack descriptor
+                 to merge it to finally installer via <jar> tag
+        -->
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-install-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.rat</groupId>
+                <artifactId>apache-rat-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- empty placeholder file -->
+                        <exclude>src/main/resources/log/catalina.out</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.codehaus.izpack</groupId>
+            <artifactId>izpack-standalone-compiler</artifactId>
+            <version>${izpackVersion}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.marmotta</groupId>
+            <artifactId>marmotta-webapp</artifactId>
+            <version>${project.version}</version>
+            <type>war</type>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.marmotta</groupId>
+            <artifactId>marmotta-splash</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+        <profile>
+            <id>installer</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <version>2.6</version>
+                        <executions>
+                            <execution>
+                                <id>create-staging</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${stagingDir}</outputDirectory>
+                                    <encoding>UTF-8</encoding>
+                                    <resources>
+                                        <resource>
+                                            <directory>src/main/resources/installer</directory>
+                                            <filtering>true</filtering>
+                                        </resource>
+                                        <resource>
+                                            <directory>src/main/resources/shortcuts</directory>
+                                            <targetPath>shortcuts</targetPath>
+                                            <filtering>true</filtering>
+                                        </resource>
+                                        <resource>
+                                            <directory>src/main/resources/panels</directory>
+                                            <targetPath>panels</targetPath>
+                                            <filtering>true</filtering>
+                                        </resource>
+                                        <resource>
+                                            <directory>src/main/resources/tomcat</directory>
+                                            <targetPath>tomcat</targetPath>
+                                        </resource>
+                                        <resource>
+                                            <directory>src/main/resources/images</directory>
+                                            <targetPath>images</targetPath>
+                                        </resource>
+                                        <resource>
+                                            <directory>src/main/resources/macos</directory>
+                                            <targetPath>macos</targetPath>
+                                        </resource>
+                                        <resource>
+                                            <directory>src/main/resources/unix</directory>
+                                            <targetPath>unix</targetPath>
+                                        </resource>
+                                        <resource>
+                                            <directory>src/main/resources/log</directory>
+                                            <targetPath>log</targetPath>
+                                        </resource>
+                                        <!--
+                                        <resource>
+                                            <directory>src/main/resources/refpacks</directory>
+                                            <targetPath>refpacks</targetPath>
+                                        </resource>
+                                        -->
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.marmotta</groupId>
+                        <artifactId>marmotta-maven-plugin</artifactId>
+                        <version>${project.version}</version>
+                        <executions>
+                            <execution>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>createSplash</goal>
+                                </goals>
+                                <configuration>
+                                    <input>src/main/resources/images/splashscreen.png</input>
+                                    <output>${stagingDir}/images/splashscreen.png</output>
+                                    <versionString>${project.version}</versionString>
+                                    <color>#1d1d1b</color>
+                                    <snapshotColor>#f8651d</snapshotColor>
+                                    <vAlign>base</vAlign>
+                                    <hAlign>right</hAlign>
+                                    <xPos>467</xPos>
+                                    <yPos>333</yPos>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.marmotta</groupId>
+                        <artifactId>refpack-maven-plugin</artifactId>
+                        <version>${project.version}</version>
+                        <configuration>
+                            <outputDirectory>${stagingDir}/refpacks</outputDirectory>
+                            <moduleGroupId>org.apache.marmotta</moduleGroupId>
+                            <requiredModules>
+                                <requiredModule>marmotta-core</requiredModule>
+                                <requiredModule>marmotta-backend-kiwi</requiredModule>
+                            </requiredModules>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>generate</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>2.6</version>
+                        <executions>
+                            <execution>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>copy-dependencies</goal>
+                                </goals>
+                                <configuration>
+                                    <excludeTransitive>false</excludeTransitive>
+                                    <excludeArtifactIds>izpack-standalone-compiler,marmotta-webapp</excludeArtifactIds>
+                                    <outputDirectory>${stagingDir}/lib/extra</outputDirectory>
+                                    <includeScope>runtime</includeScope>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>unpack</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>unpack</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>org.apache.marmotta</groupId>
+                                            <artifactId>marmotta-webapp</artifactId>
+                                            <version>${project.version}</version>
+                                            <type>war</type>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>${stagingDir}/webapp</outputDirectory>
+                                            <excludes>**/*.jar</excludes>
+                                        </artifactItem>
+                                    </artifactItems>
+                                    <excludes>**/*.jar</excludes>
+                                    <outputDirectory>${stagingDir}/webapp</outputDirectory>
+                                    <overWriteReleases>true</overWriteReleases>
+                                    <overWriteSnapshots>true</overWriteSnapshots>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.googlecode.maven-download-plugin</groupId>
+                        <artifactId>download-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>download-tomcat</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>wget</goal>
+                                </goals>
+                                <configuration>
+                                    <url>http://archive.apache.org/dist/tomcat/tomcat-7/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.zip</url>
+                                    <unpack>false</unpack>
+                                    <outputDirectory>${stagingDir}/lib</outputDirectory>
+                                    <md5>e819542bf313c3a5e0c1ad03c15880b6</md5>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>1.7</version>
+                        <executions>
+                            <execution>
+                                <id>create-empty-directories</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <tasks>
+                                        <mkdir dir="${stagingDir}/refpacks" />
+                                    </tasks>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>izpack</id>
+                                <phase>package</phase>
+                                <configuration>
+                                    <target>
+                                        <taskdef name="IzPack" classname="com.izforge.izpack.ant.IzPackTask" classpathref="maven.plugin.classpath" />
+                                        <IzPack input="${stagingDir}/standalone.xml" output="${project.build.directory}/${project.artifactId}-${project.version}.jar" installerType="standard" basedir="${stagingDir}" IzPackDir="${stagingDir}/" />
+                                    </target>
+                                </configuration>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.apache.ant</groupId>
+                                <artifactId>ant</artifactId>
+                                <version>1.8.3</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>org.codehaus.izpack</groupId>
+                                <artifactId>izpack-standalone-compiler</artifactId>
+                                <version>${izpackVersion}</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>truezip-maven-plugin</artifactId>
+                        <version>1.1</version>
+                        <executions>
+                            <execution>
+                                <id>copy-into</id>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <phase>package</phase>
+                                <configuration>
+                                    <filesets>
+                                        <fileset>
+                                            <directory>${project.basedir}/src/main/resources/installer</directory>
+                                            <includes>
+                                                <include>LICENSE.txt</include>
+                                                <include>NOTICE.txt</include>
+                                            </includes>
+                                            <outputDirectory>${project.build.directory}/${project.artifactId}-${project.version}.jar/META-INF</outputDirectory>
+                                        </fileset>
+                                    </filesets>
+                                </configuration>
+                            </execution>
+
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>marmotta-release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <phase>package</phase>
+                                <configuration>
+                                    <descriptors>
+                                        <descriptor>assembly.xml</descriptor>
+                                    </descriptors>
+                                    <finalName>apache-marmotta-${project.version}</finalName>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+</project>

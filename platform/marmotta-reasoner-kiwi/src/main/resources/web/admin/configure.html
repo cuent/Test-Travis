@@ -1,0 +1,74 @@
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership. The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<!DOCTYPE HTML>
+<html>
+<head>
+<!--###BEGIN_HEAD###-->
+    <title>Reasoning Module</title>
+    <script type="text/javascript" src="../../webjars/jquery/1.8.2/jquery.min.js"></script>
+    <script type="text/javascript" src="../../webjars/codemirror/3.16/lib/codemirror.js"></script>
+    <link rel="stylesheet" href="../../webjars/codemirror/3.16/lib/codemirror.css">
+
+    <script src="../../webjars/codemirror/3.16/addon/hint/show-hint.js"></script>
+    <link rel="stylesheet" href="../../webjars/codemirror/3.16/addon/hint/show-hint.css">
+
+    <script src="../../webjars/codemirror-modes/3.16/mode/skwrl/skwrl.js"></script>
+
+    <script type="text/javascript" src="widget/conf_reasoner.js"></script>
+    <script type="text/javascript">
+        jQuery(document).ready(function(){
+            $('#reasoner').reasoning_config({host:_SERVER_URL});
+        });
+    </script>
+    <style type="text/css">
+        tr{
+            border:none !important;
+        }
+        table{
+            border: 1px dotted black !important;
+        }
+        .CodeMirror {
+            border: 1px solid black;
+        }
+        #reasoner li .CodeMirror {
+            height: auto;
+        }
+        #reasoner li .CodeMirror-scroll {
+            overflow-y: hidden;
+            overflow-x: auto;
+        }
+    </style>
+<!--###END_HEAD###-->
+</head>
+<body>
+<!--###BEGIN_CONTENT###-->
+    <h1>Reasoning Configurator</h1>
+    <p>Here you can configure the Reasoner.</p>
+    <p>A detailed howto is available on the 
+        <a href="http://marmotta.apache.org/kiwi/reasoner.html">Marmotta Webpage (KiWi Reasoner)</a>
+        and collection of example reasoning programs is available 
+        <a href="http://wiki.apache.org/marmotta/Reasoner/ExamplePrograms">in the Wiki</a>.
+    </p> 
+        <div id="reasoner">
+            <h4>Loading reasoning configurator</h4>
+        </div>
+<!--###END_CONTENT###-->
+</body>
+</html>

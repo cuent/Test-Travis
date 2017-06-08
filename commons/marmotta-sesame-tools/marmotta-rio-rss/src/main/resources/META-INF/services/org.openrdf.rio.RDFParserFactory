@@ -1,0 +1,2 @@
+org.apache.marmotta.commons.sesame.rio.rss.RSSParserFactory
+org.apache.marmotta.commons.sesame.rio.rss.AtomParserFactory

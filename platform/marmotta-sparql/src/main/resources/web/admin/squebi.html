@@ -1,0 +1,113 @@
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership. The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<html>
+<head>
+    <!--###BEGIN_HEAD###-->
+    <title>Squebi - The SPARQL Interface</title>
+    <script type="text/javascript">
+        SQUEBI = {
+            selectService : "../select",
+            updateService : "../update",
+            home : "../../webjars/squebi/1.0.3",
+            hints : [],
+            container : '#squebi_container',
+            browse : {
+                showFlags : false
+            },
+            "samples": [
+                {"name":"Select first 10 triples", "value":"SELECT * WHERE {\n  ?subject ?property ?object\n}\nLIMIT 10","type":"browse"},
+                {"name":"List types", "value":"SELECT DISTINCT ?type WHERE {\n  [] a ?type\n} ORDER BY ?type","type":"browse"},
+                {"name":"List properties", "value":"SELECT DISTINCT ?property WHERE {\n  [] ?property []\n} ORDER BY ?property","type":"browse"}
+                //,{"name":"List classes and count their usage as pie chart", "value":"SELECT ?class (COUNT (?s) AS ?count) WHERE {\n  ?s a ?class\n}\nGROUP BY ?class\nORDER BY DESC(?count)","type":"piechart"},
+            ],
+            "writers": [
+                "browse","csv","json","pie","xml"
+            ],
+            "outputQueryParam":"output"
+        };
+    </script>
+    <script data-main="../../webjars/squebi/1.0.3/squebi" src="../../webjars/requirejs/2.1.15/require.js"></script>
+    <link href="../../webjars/squebi/1.0.3/squebi.css" rel="stylesheet" type="text/css">
+    <!--###END_HEAD###-->
+</head>
+<body>
+<!--###BEGIN_CONTENT###-->
+<div id="appLoader" style="margin-top: 100px; text-align: center; margin-bottom: 100px">
+    <img src="../../webjars/squebi/1.0.3/img/ajax-loader-big.gif">
+</div>
+<div style="display: none" id="squebi_container" class="container">
+    <div ng-controller="SampleCtrl" class="header">
+        <div ng-show="showHint">
+            <div ng-click="showHint = false" class="hint-overlay"></div>
+            <div class="hint" style="{{h.style}}" ng-repeat="h in hints" ng-bind-html="h.trusted_content"></div>
+        </div>
+        <ul class="nav nav-pills pull-right">
+            <li class="menuitem"><a ng-show="hint" ng-click="showHints()">Hints</a></li>
+            <li id="samples" class="menuitem dropdown">
+                <a class="dropdown-toggle">
+                    Samples
+                </a>
+                <ul class="dropdown-menu pull-right">
+                    <li ng-repeat="sample in samples">
+                        <a ng-click="selectSample(sample)">{{sample.name}}</a>
+                    </li>
+                </ul>
+            </li>
+            <!--<li><a href="http://github.com/tkurz/sparql-mm" target="_blank">Repository</a></li>
+            <li><a href="mailto:thomas.kurz@salzburgresearch.at">Contact</a></li>-->
+        </ul>
+    </div>
+
+    <div style="margin-top:50px;position: relative;" ng-controller="QueryCtrl" class="jumbotron">
+        <div id="query-container">
+            <textarea id="input" ng-model="query" ui-codemirror="editorOptions"></textarea>
+        </div>
+        <a class="btn btn-run btn-lg btn-success btn-query" ng-click="triggerQuery()">
+            <i class="fa fa-play-circle"></i> Run
+        </a>
+    </div>
+
+    <div ng-controller="AlertCtrl">
+        <div class="alert ng-isolate-scope alert-success" ng-class="'alert-' + (alert.type || 'warning')" ng-repeat="alert in alerts">
+            <button type="button" class="close" ng-click="remove(alert)">x</button>
+            <div>
+                <h2 ng-show="alert.title">{{alert.title}}</h2>
+                <span>{{alert.msg}}</span>
+            </div>
+        </div>
+    </div>
+    <div ng-show="showResults" ng-controller="FormatCtrl">
+        <ul id="writers" class="nav nav-tabs">
+            <li ng-repeat="writer in writers" ng-class="getClass(writer)">
+                <a title="{{writer.description}}" ng-click="selectWriter($event,writer)" href="#">{{writer.label}}</a>
+            </li>
+        </ul>
+    </div>
+    <div ng-show="showResults" ng-controller="ResultCtrl" class="row result">
+        <div ng-show="!loader" ng-include src="template"></div>
+        <div class="loader" ng-show="loader">
+            <img src="../../webjars/squebi/1.0.3/img/ajax-loader-big.gif">
+        </div>
+    </div>
+
+</div>
+<!--###END_CONTENT###-->
+</body>
+</html>

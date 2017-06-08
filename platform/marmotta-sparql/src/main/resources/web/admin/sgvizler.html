@@ -1,0 +1,120 @@
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership. The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<!DOCTYPE HTML>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <script type="text/javascript">
+        var _SERVER_URL = "http://localhost:8080/";
+        var _BASIC_URL = "http://localhost:8080/";
+    </script>
+
+    <!--###BEGIN_HEAD###-->
+    <title>Sgvizler</title>
+    <meta charset="UTF-8"/>
+    <script type="text/javascript" src="../../webjars/jquery/1.8.2/jquery.min.js"></script>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript" src="../../webjars/sgvizler/0.6/sgvizler.min.js" ></script>
+    <script type="text/javascript" src="../../webjars/codemirror/3.16/lib/codemirror.js"></script>
+    <script type="text/javascript" src="../../webjars/codemirror/3.16/addon/hint/show-hint.js"></script>
+    <script type="text/javascript" src="../../webjars/codemirror/3.16/mode/sparql/sparql.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function() {
+            // Default settings
+            sgvizler.defaultEndpointURL(_SERVER_URL + "sparql/select");
+            sgvizler.defaultEndpointOutputFormat("json");
+//            sgvizler.defaultLogContainer("sgMessage");
+
+            // List available charts
+            var charts = sgvizler.registryChartFunctions().sort(),
+                group = undefined,
+                select = $("#sgChart").empty();
+            for (var i = 0; i < charts.length; i++) {
+                var c = charts[i],
+                    g = c.split('.')[0];
+                if (!group || group.attr('label') != g) {
+                    group = $("<optgroup />", {label: g}).appendTo(select);
+                }
+                group.append($("<option/>", {'value': c, 'title':c, 'text': c.replace(/.*\./, '') }));
+            }
+
+            // preselect default query and chart
+            $("#sgQuery").val("SELECT ?class (count(?instance) AS ?noOfInstances)\nWHERE { ?instance a ?class }\nGROUP BY ?class\nORDER BY ?noOfInstances");
+            select.val("google.visualization.PieChart");
+
+            // use codemirror for the SPARQL editor
+            var editor = CodeMirror.fromTextArea(document.getElementById("sgQuery"), {
+                mode: 'sparql',
+                value: "SELECT ?class (count(?instance) AS ?noOfInstances)\nWHERE { ?instance a ?class }\nGROUP BY ?class\nORDER BY ?noOfInstances",
+                extraKeys: {"Ctrl-Space": "sparqlAutocomplete"},
+                matchBrackets : true,
+                lineNumbers: true,
+                autofocus: true
+            });
+
+            // Build the Chart
+            $("#sgSubmit").click(function(event) {
+                editor.save();
+                var Q = new sgvizler.Query();
+                Q.query(editor.getValue())
+                        .chartFunction(select.val()||"google.visualization.PieChart")
+                        .chartHeight(parseInt($("#sgHeight").val())||400)
+                        .chartWidth(parseInt($("#sgWidth").val())||800)
+                        .draw("chart");
+
+                event.preventDefault();
+            });
+        });
+    </script>
+    <link rel="stylesheet" href="../../webjars/codemirror/3.16/lib/codemirror.css" />
+    <!--
+    <link rel="stylesheet" href="../../webjars/codemirror/3.16/adon/hint/show-hint.css" />
+    -->
+    <style type="text/css">
+        .CodeMirror {
+            background-color: #fff;
+            border: 1px solid #666;
+        }
+    </style>
+    <!--###END_HEAD###-->
+</head>
+<body>
+<!--###BEGIN_CONTENT###-->
+<h2>Visualize SPARQL Query Results</h2>
+
+This page allows you to enter custom SPARQL queries and visualize their results in different kinds of charts.
+The implementation is based on <a href="http://dev.data2000.no/sgvizler/">Sqvizler</a>, so you can evaluate query
+visualisations here and then build your own custom Marmotta + Sgvizler applications.
+
+<div id="queryarea">
+    <label for="sgQuery">Query:</label><br />
+    <pre id="sgPrefix" style="display: none;"></pre>
+    <textarea id="sgQuery" rows="10" cols="80"></textarea>
+    <p>
+        <label for="sgWidth">Width:</label> <input name="width" id="sgWidth" type="text" value="800" size="3"/>
+        <label for="sgHeight">Height:</label> <input name="height" id="sgHeight" type="text" value="400" size="3"/>
+        <label for="sgChart">Chart Type:</label> <select name="chart" id="sgChart"></select><br />
+        <input id="sgSubmit" type="button" value="Query" />
+    </p>
+    <div id="sgMessage" style="display: none;"></div>
+</div>
+<div id="chart" style="width:800px; height:400px;"></div>
+<!--###END_CONTENT###-->
+</body>
+</html>

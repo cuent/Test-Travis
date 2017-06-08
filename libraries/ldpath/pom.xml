@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.apache.marmotta</groupId>
+        <artifactId>marmotta-parent</artifactId>
+        <version>3.4.0-SNAPSHOT</version>
+        <relativePath>../../parent</relativePath>
+    </parent>
+
+    <artifactId>ldpath-reactor</artifactId>
+    <packaging>pom</packaging>
+
+    <name>LDPath: Reactor</name>
+    <description>A path-based query language for RDF and Linked Data.</description>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.marmotta</groupId>
+                <artifactId>ldpath-core</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- release management -->
+    <build>
+        <plugins>
+            <!-- do not install / deploy reactor -->
+            <plugin>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-install-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+              <groupId>org.apache.felix</groupId>
+              <artifactId>maven-bundle-plugin</artifactId>
+              <inherited>true</inherited>
+              <configuration>
+                <instructions>
+                  <Bundle-Category>Apache Marmotta LDPath</Bundle-Category>
+                  <Bundle-DocURL>http://wiki.apache.org/marmotta/LDPath</Bundle-DocURL>
+                </instructions>
+              </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.rat</groupId>
+                <artifactId>apache-rat-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- Modules are checked individually -->
+                        <exclude>ldpath-*/**</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <modules>
+        <module>ldpath-api</module>
+        <module>ldpath-core</module>
+        <module>ldpath-core-bundle</module>
+        <module>ldpath-backend-sesame</module>
+        <module>ldpath-backend-file</module>
+        <module>ldpath-backend-linkeddata</module>
+        <module>ldpath-ldquery-cli</module>
+        <module>ldpath-template</module>
+        <module>ldpath-template-linkeddata</module>
+        <module>ldpath-backend-jena</module>
+        <module>ldpath-functions-collections</module>
+        <module>ldpath-functions-xml</module>
+        <module>ldpath-functions-html</module>
+        <module>ldpath-functions-text</module>
+        <module>ldpath-functions-math</module>
+        <module>ldpath-functions-date</module>
+        <module>ldpath-functions-json</module>
+        <!--
+        <module>ldpath-backend-sparql</module>
+        -->
+    </modules>
+
+</project>

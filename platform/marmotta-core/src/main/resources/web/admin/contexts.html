@@ -1,0 +1,125 @@
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership. The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<html>
+    <head>
+<!--###BEGIN_HEAD###-->
+    <title>Contexts</title>
+    <link type="text/css" rel="stylesheet" href="../public/js/widgets/configurator/style.css" />
+<!--###END_HEAD###-->
+</head>
+<body>
+<div id="main">
+<div id="contents">
+<!--###BEGIN_CONTENT###-->
+    <h1>Contexts</h1>
+    <h2>Triple Contexts / Graphs</h2>
+    <p>
+        In Marmotta we call <em>contexts</em> to triple containers with their own URI;
+        what is commonly known as 
+        <a href="http://www.w3.org/TR/sparql11-query/#namedAndDefaultGraph">graphs</a>
+        in SPARQL.
+    </p>
+    <p>
+        Currently there are <strong><span id="contexts-count">0 contexts</span></strong> in Marmotta:
+    </p>    
+    <table id="contexts" class="simple_table">
+      <thead>
+        <tr class="subtitle">
+          <th>Label</th>
+          <th>Context</th>
+          <th>Size</th>
+          <th>Download</th>
+          <th>&nbsp;</th>
+        </tr>
+      </thead>
+      <tbody></tbody>    
+    </table>  
+    
+    <script type="text/javascript" src="../../webjars/jquery/1.8.2/jquery.min.js"></script>
+    <script type="text/javascript">
+        jQuery(document).ready(function() {
+
+            function appendContext(ctx, id) {
+                var uri = ctx["uri"],
+                    label = (ctx["label"] ? ctx["label"] : uri.replace(/.*[\/#](.*)/, "$1")),
+                    size = ctx["size"];
+        
+                $("<tr>", {"id": "context_"+id})
+                    .append($("<td>", {"text": label}))
+                    .append($("<td>").append($("<a>", {"text": uri, "href": uri})))
+                    .append($("<td>").append(size!==undefined?$("<span>", {"text":size+" triple"+(size==1?"":"s")}):$("<em>", {"text":"unknown"})))
+                    .append(appendDownloadLinks($("<td>"), ctx))
+                    .append($("<td>").append($("<button>", {"text": "delete"}).click(deleteContext(uri, id, size))))
+                    .appendTo($("table#contexts > tbody:last"));        
+            }
+            function appendDownloadLinks(target, ctx) {
+                function dl(format) {
+                    return _SERVER_URL + "export/download?"
+                            + "context=" + encodeURIComponent(ctx["uri"])
+                            + "&format=" + encodeURIComponent(format);
+                }
+                return target
+                    .append($("<a>", {"text": "rdf+xml", "href": dl("application/rdf+xml")}))
+                    .append("&nbsp;")
+                    .append($("<a>", {"text": "turtle", "href": dl("text/turtle")}))
+                    .append("&nbsp;")
+                    .append($("<a>", {"text": "ld+json", "href": dl("application/ld+json")}));
+            }
+
+            function deleteContext(uri, id, size) {
+                var question = "This will DELETE context <" + uri + ">";
+                if (size) {
+                    question += " and all " + size + " triple" + (size==1?"":"s") + " contained in it";
+                }
+                return function() {
+                    if (!confirm(question)) return;
+                    $.ajax({
+                        url: "../../context?graph=" + encodeURIComponent(uri),
+                        type: "DELETE",
+                        success: function(result) {
+                            alert("Context " + uri + " deleted!");
+                            $("tr#context_" + id).slideUp(function() {
+                                $(this).remove();
+                                var c = $("span#contexts-count"),
+                                    count = c.attr("data-count") -1;
+                                c.attr("data-count", count)
+                                    .text(count + " context" + (count==1?"":"s"));
+                            });
+                        }
+                    });
+                }
+            }        
+            
+            $.getJSON("../../context/list", {labels:"true"}, function(data) {
+                var count = 0;
+                for (i in data) {                  
+                	appendContext(data[i], count++);
+                }
+                $("span#contexts-count")
+                    .attr("data-count", count)
+                    .text(count + " context" + (count==1?"":"s"));
+            });        
+        });
+    </script>
+<!--###END_CONTENT###-->
+</div>
+</div>
+</body>
+</html>

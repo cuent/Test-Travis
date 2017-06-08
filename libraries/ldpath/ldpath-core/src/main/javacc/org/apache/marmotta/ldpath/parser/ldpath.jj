@@ -1,0 +1,1106 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+options
+{
+  STATIC=false;
+//  LOOKAHEAD=5;
+  CACHE_TOKENS=true;
+//  FORCE_LA_CHECK=true;
+//  CHOICE_AMBIGUITY_CHECK=5;
+  LOOKAHEAD=2147483647;
+//  DEBUG_PARSER=true;
+//  DEBUG_TOKEN_MANAGER=true;
+//  DEBUG_LOOKAHEAD=true;
+  SUPPORT_CLASS_VISIBILITY_PUBLIC=false;
+}
+
+PARSER_BEGIN(LdPathParser)
+package org.apache.marmotta.ldpath.parser;
+
+import static org.apache.marmotta.ldpath.model.Constants.NS_LMF_FUNCS;
+
+import org.apache.marmotta.ldpath.api.backend.*;
+import org.apache.marmotta.ldpath.api.functions.*;
+import org.apache.marmotta.ldpath.api.selectors.*;
+import org.apache.marmotta.ldpath.api.tests.*;
+import org.apache.marmotta.ldpath.api.transformers.*;
+
+import org.apache.marmotta.ldpath.model.fields.*;
+import org.apache.marmotta.ldpath.model.functions.*;
+import org.apache.marmotta.ldpath.model.programs.*;
+import org.apache.marmotta.ldpath.model.selectors.*;
+import org.apache.marmotta.ldpath.model.tests.*;
+import org.apache.marmotta.ldpath.model.transformers.*;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Collections;
+
+import java.io.Reader;
+import java.io.InputStream;
+
+import java.net.URI;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
+@SuppressWarnings("all")
+public class LdPathParser<Node> {
+
+        private enum Mode { RULE, SELECTOR, TEST, PROGRAM, PREFIX };
+
+
+        private static final Logger log = LoggerFactory.getLogger(LdPathParser.class);
+
+        /**
+         * A map mapping from namespace prefix to namespace URI
+         */
+        private Map<String,String> namespaces = new HashMap<String,String>();
+
+        private NodeBackend<Node> backend;
+
+        private Configuration config;
+
+        private Mode mode = Mode.PROGRAM;
+
+        public LdPathParser(NodeBackend<Node> backend, Reader in) {
+            this(backend,null,in);
+        }
+
+        public LdPathParser(NodeBackend<Node> backend, Configuration config, Reader in) {
+            this(in);
+            this.backend = backend;
+            if(config == null) {
+                this.config = new DefaultConfiguration();
+            } else {
+                this.config = config;
+            }
+
+            initialise();
+        }
+
+        public LdPathParser(NodeBackend<Node> backend, InputStream in) {
+            this(backend,null,in);
+        }
+
+        public LdPathParser(NodeBackend<Node> backend, Configuration config, InputStream in) {
+            this(in);
+            this.backend = backend;
+            if(config == null) {
+                this.config = new DefaultConfiguration();
+            } else {
+                this.config = config;
+            }
+
+            initialise();
+        }
+
+        public LdPathParser(NodeBackend<Node> backend, InputStream in, String encoding) {
+            this(backend,null,in,encoding);
+        }
+
+        public LdPathParser(NodeBackend<Node> backend, Configuration config, InputStream in, String encoding) {
+            this(in,encoding);
+            this.backend = backend;
+            if(config == null) {
+                this.config = new DefaultConfiguration();
+            } else {
+                this.config = config;
+            }
+
+            initialise();
+        }
+
+        public Program<Node> parseProgram() throws ParseException {
+            namespaces.clear();
+            namespaces.putAll(config.getNamespaces());
+
+            mode = Mode.PROGRAM;
+            try {
+                return Program();
+            } catch(TokenMgrError error){
+                throw new ParseException("Unable to parse Program: (Message: "+error.getMessage()+")");
+            }
+        }
+
+        public Entry<String, String> parsePrefix() throws ParseException {
+            namespaces.clear();
+            namespaces.putAll(config.getNamespaces());
+            mode = Mode.PREFIX;
+            try {
+                return Namespace();
+            } catch (TokenMgrError error) {
+                throw new ParseException("Unable to parse Prefix: (Message: "+ error.getMessage()+")");
+            }
+        }
+
+        public Map<String, String> parsePrefixes() throws ParseException {
+            namespaces.clear();
+            namespaces.putAll(config.getNamespaces());
+            mode = Mode.PREFIX;
+            try {
+                return Namespaces();
+            } catch (TokenMgrError error) {
+                throw new ParseException("Unable to parse Prefixes: (Message: "+ error.getMessage()+")");
+            }
+        }
+
+
+        public NodeSelector<Node> parseSelector(Map<String,String> ctxNamespaces) throws ParseException {
+            namespaces.clear();
+            namespaces.putAll(config.getNamespaces());
+            if(ctxNamespaces != null) {
+                namespaces.putAll(ctxNamespaces);
+            }
+
+            mode = Mode.SELECTOR;
+
+            try {
+                return Selector();
+            } catch(TokenMgrError error){
+                throw new ParseException("Unable to parse Selector: (Message: "+error.getMessage()+")");
+            }
+        }
+        
+        public NodeTest<Node> parseTest(Map<String, String> ctxNamespaces) throws ParseException {
+            namespaces.clear();
+            namespaces.putAll(config.getNamespaces());
+            if (ctxNamespaces != null) {
+                namespaces.putAll(ctxNamespaces);
+            }
+            mode = Mode.TEST;
+            try {
+                return NodeTest();
+            } catch (TokenMgrError error) {
+                throw new ParseException("Unable to parse Test: (Message: "+ error.getMessage()+")");
+            }
+        }
+
+        public <T> FieldMapping<T,Node> parseRule(Map<String,String> ctxNamespaces) throws ParseException {
+            namespaces.clear();
+            namespaces.putAll(config.getNamespaces());
+            if(ctxNamespaces != null) {
+                namespaces.putAll(ctxNamespaces);
+            }
+
+            mode = Mode.RULE;
+
+            try {
+                return Rule();
+            } catch(TokenMgrError error){
+                throw new ParseException("Unable to parse Rule: (Message: "+error.getMessage()+")");
+            }
+        }
+
+        public Node resolveURI(URI uri) {
+            return backend.createURI(uri.toString());
+        }
+
+        public Node resolveResource(String uri) throws ParseException {
+            return backend.createURI(uri);
+        }
+
+        public Node resolveResource(String prefix, String local) throws ParseException {
+            return resolveResource(resolveNamespace(prefix)+local);
+        }
+
+
+        public String resolveNamespace(String prefix) throws ParseException {
+            String uri = namespaces.get(prefix);
+            if(uri == null) {
+                throw new ParseException("Namespace "+prefix+" not defined!");
+            }
+            return uri;
+        }
+
+
+        public SelectorFunction<Node> getFunction(String uri) throws ParseException {
+            if(xsdNodeFunctionMap.get(uri) != null) {
+               return xsdNodeFunctionMap.get(uri);
+            } else {
+                throw new ParseException("function with URI "+uri+" does not exist");
+            }
+        }
+
+        public TestFunction<Node> getTestFunction(String uri) throws ParseException {
+            if (xsdNodeTestMap.get(uri) != null) {
+                return xsdNodeTestMap.get(uri);
+            } else {
+                throw new ParseException("test function with URI "+uri+" does not exist");
+            }
+        }
+
+        public NodeTransformer<?,Node> getTransformer(URI type) throws ParseException {
+            return getTransformer(type.toString());
+        }
+
+        public NodeTransformer<?,Node> getTransformer(Node node) throws ParseException {
+            return getTransformer(backend.stringValue(node));
+        }
+
+        public NodeTransformer<?,Node> getTransformer(String uri) throws ParseException {
+            if(xsdNodeTransformerMap.get(uri) != null) {
+                return xsdNodeTransformerMap.get(uri);
+            } else {
+                throw new ParseException("transformer with URI "+uri+" does not exist");
+            }
+        }
+
+
+        private void initialise() {
+            initTransformerMappings();
+            initFunctionMappings();
+        }
+
+        /**
+         * Register the function passed as argument in this parser's function map.
+         */
+        public void registerFunction(SelectorFunction<Node> function) {
+            registerFunction(xsdNodeFunctionMap,function);
+        }
+
+        public void registerFunction(TestFunction<Node> test) {
+            registerTest(xsdNodeTestMap, test);
+        }
+
+        /**
+         * Register the result transformer passed as argument for the given type uri.
+         */
+        public void registerTransformer(String typeUri, NodeTransformer<?,Node> transformer) {
+            xsdNodeTransformerMap.put(typeUri,transformer);
+        }
+
+
+        /**
+         * A map mapping from XSD types to node transformers.
+         */
+        private Map<String, NodeTransformer<?,Node>> xsdNodeTransformerMap;
+        private void initTransformerMappings() {
+            Map<String, NodeTransformer<?,Node>> transformerMap = new HashMap<String, NodeTransformer<?,Node>>();
+
+            transformerMap.putAll(config.getTransformers());
+
+            xsdNodeTransformerMap = transformerMap;
+        }
+
+
+        private Map<String, SelectorFunction<Node>> xsdNodeFunctionMap;
+        private Map<String, TestFunction<Node>> xsdNodeTestMap;
+        private void initFunctionMappings() {
+            Map<String, SelectorFunction<Node>> functionMap = new HashMap<String, SelectorFunction<Node>>();
+
+            functionMap.putAll(config.getFunctions());
+
+            xsdNodeFunctionMap = functionMap;
+
+        Map<String, TestFunction<Node>> testMap = new HashMap<String, TestFunction<Node>>();
+        testMap.putAll(config.getTestFunctions());
+        xsdNodeTestMap = testMap;
+        }
+
+        private void registerFunction(Map<String, SelectorFunction<Node>> register, final SelectorFunction<Node> function) {
+            register.put(NS_LMF_FUNCS + function.getPathExpression(backend), function);
+        }
+        
+        private void registerTest(Map<String, TestFunction<Node>> register, final TestFunction<Node> test) {
+            register.put(NS_LMF_FUNCS + test.getLocalName(), test);
+        }
+
+        private class Namespace implements Entry<String, String> {
+            private String key, val;
+            public Namespace(String key, String val) {
+                this.key = key;
+                this.val = val;
+            }
+            @Override
+            public String getKey() {
+                return key;
+            }
+            @Override
+            public String getValue() {
+                return val;
+            }
+            @Override
+            public String setValue(String value) {
+                String oV = val;
+                val = value;
+                return oV;
+            }
+        }
+
+}
+PARSER_END(LdPathParser)
+
+SKIP :
+{
+     " "
+|    "\r"
+|    "\t"
+|    "\n"
+}
+
+// When a /* is seen in the DEFAULT state, skip it and switch to the IN_COMMENT state
+SKIP : {
+    "/*": IN_COMMENT
+}
+
+// When any other character is seen in the IN_COMMENT state, skip it.
+< IN_COMMENT > SKIP : {
+    <  ~[] >
+}
+
+// When a */ is seen in the IN_COMMENT state, skip it and switch back to the DEFAULT state
+< IN_COMMENT > SKIP : {
+    "*/": DEFAULT
+}
+
+MORE:
+{
+ "\"" : WithinString
+}
+
+<WithinString> TOKEN:
+{
+  <STRLIT: "\""> : DEFAULT
+}
+
+<WithinString> MORE:
+{
+  <~["\n","\r"]>
+}
+
+
+TOKEN : /* LDPATH */
+{
+  < COMMA:  "," >  |
+  < SCOLON: ";" >  |
+  < COLON:  ":" >  |
+  < DCOLON: "::" > |
+  < ASSIGN: "=" >  |
+  < K_PREFIX: "@prefix" > |
+  < K_FILTER: "@filter" > |
+  < K_BOOST:  "@boost" >  |
+  < K_GRAPH:  "@graph" >
+}
+TOKEN : /* OPERATORS */
+{
+    < SELF: "." >    |
+    < AND:  "&" >    |
+    < OR:   "|" >    |
+    < P_SEP:"/" >    |
+    < PLUS: "+" >    |
+    < STAR: "*" >    |
+    < NOT:  "!" >    |
+    < INVERSE: "^" > |
+    < IS:   "is" >   |
+    < IS_A: "is-a" > |
+    < FUNC: "fn:" >  |
+      < TYPE: "^^" >   |
+      < LANG: "@" >
+}
+
+TOKEN : /* BRACKETS */
+{
+  < B_RO: "(" > |
+  < B_RC: ")" > |
+  < B_SO: "[" > |
+  < B_SC: "]" > |
+  < B_CO: "{" > |
+  < B_CC: "}" > |
+  < B_XO: "<" > |
+  < B_XC: ">" > 
+}
+TOKEN :
+{
+    < URI: "<" (~[ ">","<", "\"", "{", "}", "^", "\\", "|", "`", "\u0000"-"\u0020"])+ ">" > |
+    < IDENTIFIER: ["a"-"z","A"-"Z","0"-"9","_"](["a"-"z","A"-"Z","0"-"9","_","'","-", "."])* > |
+    < #URICHAR: ["a"-"z","A"-"Z","0"-"9",";","/","?",":","@","&","=","+","$",".","-","_","!","~","*","'","%"] >
+}
+
+Map<String, String> Namespaces() :
+{
+    Map<String, String> ns = new LinkedHashMap<String, String>();
+    Entry<String, String> namespace = null;
+}
+{
+  (
+     namespace = Namespace() {
+       ns.put(namespace.getKey(), namespace.getValue());
+     }
+  )+
+  {
+    return ns;
+  }   
+}
+
+Entry<String, String> Namespace() :
+{
+    Token id = null;
+    Token uri;
+}
+{
+  ( 
+    <K_PREFIX> id = <IDENTIFIER> <COLON> uri = <URI> (<SCOLON> )? {
+    }
+  ) { return new Namespace(id.image, uri.image.substring(1,uri.image.length()-1)); }
+}
+
+Program Program() :
+{
+    Program<Node> program = new Program();
+    NodeTest<Node> filter = null;
+    Map<String, String> nss = null;
+    FieldMapping<?,Node> rule;
+    NodeSelector<Node> boostSelector;
+    LinkedList<URI> graphs;
+}
+{
+  (
+    nss = Namespaces() {
+        namespaces.putAll(nss);
+        for (String k : nss.keySet()) {
+            program.addNamespace(k, nss.get(k));
+        }
+    }
+  )?
+
+  (
+    <K_GRAPH> graphs = UriList() <SCOLON> {
+      program.setGraphs(graphs);
+    }
+  )?
+
+  (
+    <K_FILTER> filter = NodeTest() <SCOLON> {
+        program.setFilter(filter);
+    }
+  )?
+
+  (
+    <K_BOOST> boostSelector = Selector() <SCOLON> {
+        NodeTransformer transformer = getTransformer(Program.DOCUMENT_BOOST_TYPE);
+        FieldMapping booster = new FieldMapping("@boost", java.net.URI.create(Program.DOCUMENT_BOOST_TYPE), boostSelector, transformer, null);
+        program.setBooster(booster);  
+    }
+  )?
+
+  (
+    rule = Rule()
+    {
+       program.addMapping(rule);
+    }
+  )*
+  <EOF>
+  {
+    return program;
+  }
+}
+
+LinkedList<URI> UriList() :
+{
+    LinkedList<URI> rest = null;
+    URI uri;
+}
+{
+    uri = Uri() ( <COMMA> rest = UriList() )?
+    {
+      if (rest == null) rest = new LinkedList<URI>();
+      rest.addFirst(uri);
+      return rest;
+    }
+}
+
+FieldMapping Rule() :
+{
+    FieldMapping<?,Node> rule;
+    Token name;
+    URI uri;
+    URI type = null;
+    NodeSelector<Node> selector;
+    NodeTransformer<?,Node> transformer;
+    Map<String, String> conf = null;
+}
+{
+    name = <IDENTIFIER> <ASSIGN> selector = Selector() (<DCOLON> type = Uri())? (<B_RO> conf = FieldConfig() <B_RC>)? <SCOLON> {
+        if(type != null) {
+            transformer = getTransformer(type);
+        } else {
+            transformer = new IdentityTransformer();
+        }
+        if(mode != Mode.PROGRAM) {
+            throw new ParseException("cannot use field names when parsing single paths");
+        }
+        rule = new FieldMapping(name.image,type,selector,transformer, conf);
+        return rule;
+    }
+|   uri = Uri() <ASSIGN> selector = Selector() (<DCOLON> type = Uri())? (<B_RO> conf = FieldConfig() <B_RC>)? <SCOLON> {
+        if(type != null) {
+            transformer = getTransformer(type);
+        } else {
+            transformer = new IdentityTransformer();
+        }
+        if(mode != Mode.PROGRAM) {
+            throw new ParseException("cannot use field names when parsing single paths");
+        }
+        rule = new FieldMapping(uri,type,selector,transformer, conf);
+        return rule;
+    }
+|   selector = Selector() (<DCOLON> type = Uri())? (<B_RO> conf = FieldConfig() <B_RC>)? (<SCOLON>)? {
+        if(type != null) {
+            transformer = getTransformer(type);
+        } else {
+            transformer = new IdentityTransformer();
+        }
+        if(mode != Mode.PROGRAM && conf != null) {
+            throw new ParseException("cannot use configuration parameters when parsing single paths");
+        }
+        try {
+            rule = new FieldMapping(selector.getName(backend),type,selector,transformer, conf);
+        } catch(UnsupportedOperationException ex) {
+            if(mode == Mode.PROGRAM) {
+                rule = new FieldMapping("unnamed",type,selector,transformer, conf);
+                log.error("error while parsing {}: {}", rule.getPathExpression(backend),ex.getMessage());
+                throw new ParseException("error while parsing "+rule.getPathExpression(backend)+": "+ex.getMessage());
+            } else {
+                rule = new FieldMapping("unnamed",type,selector,transformer, conf);
+            }
+        }
+        return rule;
+    }
+}
+
+
+Map<String,String> FieldConfig() : {
+    Map<String, String> conf = new LinkedHashMap<String, String>();
+    Token key = null;
+    String val = null;
+    Map<String,String> more = null;
+}
+{
+    ( key = <IDENTIFIER> <ASSIGN> val = ConfVal() ( <COMMA> more = FieldConfig() )? )? {
+        if (key == null || val == null) return null;
+        conf.put(key.image, val);
+        if (more != null) {
+            conf.putAll(more);
+        }
+        return conf;
+    }
+}
+
+String ConfVal() : {
+    Token str, id;
+}
+{
+    str = <STRLIT> { return str.image.substring(1, str.image.length() -1); }
+|    id = <IDENTIFIER> { return id.image; }
+}
+
+URI Uri() : {
+    Token uri, prefix, localName;
+
+}
+{
+    uri = <URI> {
+       return java.net.URI.create(uri.image.substring(1,uri.image.length()-1));
+    }
+|   prefix = <IDENTIFIER> ":" localName = <IDENTIFIER> {
+        return java.net.URI.create(resolveNamespace(prefix.image)+localName.image);
+    }
+}
+
+
+NodeSelector Selector() :
+{
+    NodeSelector result;
+}
+{
+    (
+        result = CompoundSelector()
+    |   result = TestingSelector()
+    |   result = AtomicSelector()
+    )
+    {
+        return result;
+    }
+}
+
+
+NodeSelector CompoundSelector() :
+{
+    NodeSelector result = null;
+}
+{
+    (
+        /* Union Selector */
+        result = UnionSelector() |
+
+        /* Intersection Selector */
+        result = IntersectionSelector() |
+
+        /* Path Selector */
+        result = PathSelector()
+
+
+    )
+    {
+        return result;
+    }
+}
+
+/**
+ * As path elements, we do not allow arbitrary compound selectors, but we allow all atomic and path selectors.
+ */
+NodeSelector AtomicOrTestingOrPathSelector() :
+{
+    NodeSelector result = null;
+}
+{
+    (
+        /* Path Selector */
+        result = PathSelector() |
+
+        /* Atomic Selector */
+        result = AtomicOrTestingSelector()
+    )
+    {
+        return result;
+    }
+}
+
+NodeSelector AtomicOrTestingSelector() :
+{
+    NodeSelector result = null;
+}
+{
+    (
+        /* Testing Selector */
+        result = TestingSelector() |
+
+        /* Atomic Selector */
+        result = AtomicSelector()
+    )
+    {
+        return result;
+    }
+}
+
+NodeSelector AtomicSelector() :
+{
+    NodeSelector result = null;
+}
+{
+    (
+        /* Self Selector */
+        result = SelfSelector() |
+            
+        /* Property Selector */
+        result = PropertySelector() |
+
+        /* Wildcard Selector */
+        result = WildcardSelector() |
+        
+        /* Reverse Property Selector */
+        result = ReversePropertySelector() |
+
+        /* Function Selector */
+        result = FunctionSelector() |
+
+        /* String Constant Selector */
+        result = StringConstantSelector() |
+        
+        /* Recursive Path Selector */
+        result = RecursivePathSelector() |
+
+        /* Other selector enclosed in braces */
+        result = GroupedSelector()
+
+    )
+    {
+        return result;
+    }
+}
+
+NodeSelector SelfSelector() :
+{
+}
+{
+    <SELF> { return new SelfSelector(); }
+}
+
+NodeSelector GroupedSelector() :
+{
+    NodeSelector result = null;
+}
+{
+    /* Other selector enclosed in braces */
+    <B_RO> result = Selector() <B_RC>
+    {
+        return new GroupedSelector(result);
+    }
+
+}
+
+RecursivePathSelector RecursivePathSelector() :
+{
+    RecursivePathSelector result = null;
+    NodeSelector delegate        = null;
+}
+{
+    <B_RO> delegate = Selector() <B_RC> <PLUS>    
+    {
+        result = RecursivePathSelector.getPathSelectorPlused(delegate);
+        return result;
+    } |
+    <B_RO> delegate = Selector() <B_RC> <STAR>
+    {
+        result = RecursivePathSelector.getPathSelectorStared(delegate);
+        return result;
+    } 
+}
+
+PathSelector PathSelector() :
+{
+    PathSelector result = null;
+    NodeSelector left   = null;
+    NodeSelector right  = null;
+}
+{
+    left = AtomicOrTestingSelector() <P_SEP> right = AtomicOrTestingOrPathSelector()
+    {
+        result = new PathSelector(left,right);
+        return result;
+    }
+}
+
+IntersectionSelector IntersectionSelector() :
+{
+    IntersectionSelector result = null;
+    NodeSelector left   = null;
+    NodeSelector right  = null;
+}
+{
+    left = AtomicOrTestingOrPathSelector() <AND> right = Selector()
+    {
+        result = new IntersectionSelector(left,right);
+        return result;
+    }
+}
+
+UnionSelector UnionSelector() :
+{
+    UnionSelector result = null;
+    NodeSelector left   = null;
+    NodeSelector right  = null;
+}
+{
+    left = AtomicOrTestingOrPathSelector() <OR> right = Selector()
+    {
+        result = new UnionSelector(left,right);
+        return result;
+    }
+}
+
+TestingSelector TestingSelector() :
+{
+    TestingSelector result = null;
+    NodeSelector delegate  = null;
+    NodeTest test = null;
+}
+{
+    delegate = AtomicSelector() <B_SO> test = NodeTest() <B_SC> {
+        result = new TestingSelector(delegate,test);
+        return result;
+    }
+}
+
+ReversePropertySelector ReversePropertySelector() :
+{
+    ReversePropertySelector result = null;
+    URI uri;
+}
+{
+    <INVERSE> uri = Uri() {
+        result   = new ReversePropertySelector(resolveURI(uri));
+        return result;
+    }
+}
+
+PropertySelector PropertySelector() :
+{
+    PropertySelector result = null;
+    URI uri;
+}
+{
+    uri = Uri() {
+        result   = new PropertySelector(resolveURI(uri));
+        return result;
+    }
+}
+
+WildcardSelector WildcardSelector() :
+{
+    WildcardSelector result = null;
+}
+{
+    <STAR> {
+        result = new WildcardSelector();
+        return result;
+    }
+}
+
+FunctionSelector FunctionSelector() :
+{
+    FunctionSelector result = null;
+    List<NodeSelector> arguments = new ArrayList<NodeSelector>();
+    NodeSelector argument;
+    String uri;
+    Token fName;
+}
+{
+    /* Function-Calls without arguments can skip parenthesis */
+    /* Does not work... why?
+    <FUNC> fName = <IDENTIFIER> {
+           uri = namespaces.get("fn") + fName.image;
+           result = new FunctionSelector(getFunction(uri),Collections.emptyList());
+           return result;
+    } | */
+    /* Functions do not need to have arguments */
+    <FUNC> fName = <IDENTIFIER> <B_RO> <B_RC> {
+           uri = namespaces.get("fn") + fName.image;
+           result = new FunctionSelector(getFunction(uri),Collections.emptyList());
+           return result;
+    } |
+    /* Sometimes arguments are required */
+    <FUNC> fName = <IDENTIFIER> <B_RO>
+            argument = Selector() { arguments.add(argument); }
+            ( <COMMA> argument = Selector() { arguments.add(argument); } )*
+    <B_RC> {
+           uri = namespaces.get("fn") + fName.image;
+           result = new FunctionSelector(getFunction(uri),arguments);
+           return result;
+    }
+}
+
+
+StringConstantSelector StringConstantSelector() :
+{
+    StringConstantSelector result = null;
+    Token literal;
+}
+{
+    literal = <STRLIT> {
+        result = new StringConstantSelector(literal.image.substring(1, literal.image.length()-1));
+        return result;
+    }
+}
+
+
+
+NodeTest NodeTest() :
+{
+    NodeTest result;
+}
+{
+    (
+        result = GroupedTest()
+    |   result = NotTest()
+    |   result = AndTest()
+    |   result = OrTest()
+    |   result = AtomicNodeTest()
+    )
+    {
+        return result;
+    }
+}
+
+NodeTest GroupedTest() :
+{
+    NodeTest delegate;
+}
+{
+    <B_RO> delegate = NodeTest() <B_RC> {
+       return delegate;
+    }
+}
+
+NodeTest AtomicNodeTest() :
+{
+    NodeTest result;
+}
+{
+    (
+        result = LiteralLanguageTest()
+    |   result = LiteralTypeTest()
+    |   result = IsATest()
+    |   result = PathEqualityTest()
+    |   result = FunctionTest()
+    |   result = PathTest()
+    )
+    {
+        return result;
+    }
+}
+
+FunctionTest FunctionTest() :
+{
+    FunctionTest result;
+    List<NodeSelector> arguments = new ArrayList<NodeSelector>();
+    NodeSelector argument;
+    String uri;
+    Token fName;
+}
+{
+  (    
+    /* Function-Calls without arguments can skip parenthesis */
+    /* Does not work... why?
+    <FUNC> fName = <IDENTIFIER> {
+           uri = namespaces.get("fn") + fName.image;
+           result = new FunctionSelector(getTestFunction(uri),Collections.emptyList());
+    } | */
+    /* Functions do not need to have arguments */
+    <FUNC> fName = <IDENTIFIER> <B_RO> <B_RC> {
+           uri = namespaces.get("fn") + fName.image;
+           result = new FunctionTest(getTestFunction(uri),Collections.emptyList());
+    } |
+    /* Sometimes arguments are required */
+    <FUNC> fName = <IDENTIFIER> <B_RO>
+            argument = Selector() { arguments.add(argument); }
+            ( <COMMA> argument = Selector() { arguments.add(argument); } )*
+    <B_RC> {
+           uri = namespaces.get("fn") + fName.image;
+           result = new FunctionTest(getTestFunction(uri),arguments);
+    }
+  )
+  {
+    return result;
+  }
+}
+
+LiteralLanguageTest LiteralLanguageTest():
+{
+    Token lang;
+}
+{
+    <LANG> lang = <IDENTIFIER> {
+        return new LiteralLanguageTest(lang.image);
+    }
+}
+
+LiteralTypeTest LiteralTypeTest():
+{
+    URI type;
+}
+{
+    <TYPE> type = Uri() {
+        return new LiteralTypeTest(type);
+    }
+}
+
+NotTest NotTest() :
+{
+    NodeTest delegate;
+}
+{
+    <NOT>  delegate = NodeTest() {
+        return new NotTest(delegate);
+    }
+}
+
+IsATest IsATest() :
+{
+    Node node;
+}
+{
+    <IS_A> node = Node() {
+        return new IsATest(resolveResource("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), node);
+    }
+}
+
+
+AndTest AndTest():
+{
+    NodeTest left, right;
+}
+{
+    left = AtomicNodeTest() <AND> right = NodeTest() {
+        return new AndTest(left,right);
+    }
+}
+
+OrTest OrTest():
+{
+    NodeTest left, right;
+}
+{
+    left = AtomicNodeTest() <OR> right = NodeTest() {
+        return new OrTest(left,right);
+    }
+}
+
+PathEqualityTest PathEqualityTest():
+{
+    NodeSelector path;
+    Node node;
+}
+{
+    path = Selector() <IS> node = Node() {
+        return new PathEqualityTest(path,node);
+    }
+}
+
+
+Node Node():
+{
+    URI uri, type = null;
+    Token literal, language;
+}
+{
+    uri = Uri() {
+        return resolveURI(uri);
+    }
+|   literal = <STRLIT>  (<TYPE> type = Uri() )? {
+        return backend.createLiteral(literal.image.substring(1, literal.image.length()-1),null,type);
+    }
+|   literal = <STRLIT>  <LANG> language = <IDENTIFIER> {
+        return backend.createLiteral(literal.image.substring(1, literal.image.length()-1),new Locale(language.image),null);
+    }
+}
+
+
+PathTest PathTest():
+{
+    NodeSelector path;
+}
+{
+    (
+        path = PathSelector()
+    |   path = TestingSelector()
+    |   path = AtomicSelector()
+    )
+    {
+        return new PathTest(path);
+    }
+}
+

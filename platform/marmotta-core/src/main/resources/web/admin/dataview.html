@@ -1,0 +1,311 @@
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership. The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<!DOCTYPE HTML>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<!--###BEGIN_HEAD###-->
+    <title>Data Views</title>
+    <meta charset="UTF-8"/>
+    <script type="text/javascript" src="../../webjars/jquery/1.8.2/jquery.min.js"></script>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+        google.load('visualization', '1.0', {'packages':['corechart']});
+
+        $(document).ready(function() {
+            var colors = [  '#3366CC','#DC3912','#FF9900','#109618','#990099','#0099C6','#DD4477','#66AA00','#B82E2E','#316395','#994499','#22AA99','#AAAA11',
+                'blue','red','orange','green','navy','Crimson','DarkGreen','DarkTurquoise','DodgerBlue','OliveDrab','pink','violet',
+                'GoldenRod','Fuchsia','Darkorange','DarkSlateBlue','GreenYellow','LightSeaGreen','Maroon','MediumVioletRed'];
+
+            function loader() {
+                return $("<img />", {'src':_SERVER_URL+'core/public/img/loader/lmf-loader_32.gif'});
+            }
+
+            function sparql(query,onsuccess,onfailure) {
+                $.ajax({
+                    'url': _SERVER_URL+"sparql/select?output=json&query="+encodeURIComponent(query),
+                    'success': onsuccess,
+                    'error': onfailure,
+                    'async': true
+                });
+            }
+
+            function toGoogleDataTable(data, missingValue) {
+                function getValue(d) {
+                    return d?d.value:"";
+                }
+                var tbl = new google.visualization.DataTable(),
+                        c1 = data.head.vars[0],
+                        c2 = data.head.vars[1];
+                tbl.addColumn('string', c1);
+                tbl.addColumn('number', c2);
+                tbl.addColumn('string', "");
+                var bind = data.results.bindings;
+                for( var i = 0; i < bind.length; i++) {
+                    var g = getValue(bind[i][c1]);
+                    tbl.addRow([ g!=""?g:missingValue, parseInt( getValue(bind[i][c2]) )||0, g ]);
+                }
+                return tbl;
+            }
+
+            google.setOnLoadCallback(drawStatistics);
+            function drawStatistics() {
+                var target = $("#overview").empty().append(loader());
+                function error() {
+                    target.text("Error loading statistics");
+                }
+
+                var stats = {};
+                sparql("SELECT (COUNT (?s) AS ?triples) WHERE { ?s ?p ?o }",
+                    function(data) {
+                        stats.triples = data.results.bindings[0].triples.value;
+                        if (stats.triples == 0) {
+                            target.empty().text("System does not contain any data");
+                            $("#details").hide();
+                            return;
+                        }
+                        sparql("SELECT (COUNT (?s) AS ?subjects) WHERE { SELECT ?s WHERE { ?s ?p ?o } GROUP BY ?s }",
+                            function(data){
+                                stats.subjects = data.results.bindings[0].subjects.value;
+                                sparql("SELECT (COUNT (?x) AS ?graphs) WHERE { SELECT ?x {GRAPH ?x { ?s ?p ?o }} GROUP BY ?x}",
+                                    function(data) {
+                                        stats.graphs = data.results.bindings[0].graphs.value;
+                                        var s = "System contains $2 subjects with overall $1 triples in $3 graphs.";
+                                        s = s.replace(/\$1/g,stats.triples);
+                                        s = s.replace(/\$2/g,stats.subjects);
+                                        s = s.replace(/\$3/g,stats.graphs);
+                                        target.empty().text(s);
+
+                                        $("#details").slideDown();
+                                        drawGraphs();
+                                        drawClasses(undefined);
+                                    },
+                                    error
+                                );
+                            },
+                            error
+                        );
+                    },
+                    error
+                );
+            }
+
+            var _graph = undefined, _type = undefined;
+            function drawGraphs() {
+                var target = $("#graphs").empty().append(loader());
+                function error() {
+                    target.empty().text("Could not load graphs");
+                }
+                sparql("SELECT ?graph (COUNT(?s) AS ?triples) WHERE { GRAPH ?graph { ?s ?p ?o }} GROUP BY ?graph",
+                    function(data){
+                        var tbl = toGoogleDataTable(data, "default graph"),
+                            options = {
+                                is3D:true,
+                                height: 350,
+                                title:'All Graphs in the system. Click to select!',
+                                slices: {},
+                                colors:colors };
+
+                        var chart = new google.visualization.PieChart(document.getElementById('graphs'));
+                        google.visualization.events.addListener(chart, 'select', function() {
+                            var selection = chart.getSelection()[0];
+                            if (selection) {
+                                _graph = tbl.getValue(selection.row, 2);
+                                _type = undefined;
+                                if (tbl.getNumberOfRows() > 1) {
+                                    if (options.slices[selection.row]) {
+                                        options.slices = {};
+                                        _graph = undefined;
+                                    } else {
+                                        options.slices = {};
+                                        options['slices'][selection.row] =  { 'offset': .2};
+                                    }
+                                }
+                                chart.draw(tbl, options);
+                                drawClasses(_graph);
+                            }
+                        });
+                        chart.draw(tbl, options);
+                    },
+                    error
+                );
+            }
+
+            function drawClasses(graph) {
+                _graph = graph || _graph;
+                $("#resources").empty().append(loader());
+                var target = $("#types").empty().append(loader()),
+                    query = _graph ?
+                        "SELECT ?class (COUNT(?s) AS ?count) WHERE { GRAPH <"+_graph+"> {{?s a ?class} UNION { GRAPH <"+_graph+"> { ?s ?a ?b. FILTER NOT EXISTS{?s a ?class}}}}}GROUP BY ?class" :
+                        "SELECT ?class (COUNT(?s) AS ?count) WHERE {{?s a ?class} UNION { ?s ?a ?b. FILTER NOT EXISTS{?s a ?class}}}GROUP BY ?class";
+                function error() {
+                    target.empty().text("Could not load classes");
+                }
+
+                sparql(query,
+                    function(data) {
+                        var tbl = toGoogleDataTable(data, "no type"),
+                            options = {
+                                is3D:true,
+                                height: 350,
+                                title: "All classes in "+(_graph?_graph:"the System. Click to select!"),
+                                slices: {},
+                                colors:colors };
+
+                        var chart = new google.visualization.PieChart(document.getElementById('types'));
+                        google.visualization.events.addListener(chart, 'select', function() {
+                            var selection = chart.getSelection()[0];
+                            if (selection) {
+                                _type = tbl.getValue(selection.row, 2);
+                                var _c = colors[selection.row];
+                                if (tbl.getNumberOfRows() > 1) {
+                                    if (options.slices[selection.row]) {
+                                        options.slices = {};
+                                        _type = undefined;
+                                        _c = "#333";
+                                    } else {
+                                        options.slices = {};
+                                        options['slices'][selection.row] =  { 'offset': .2};
+                                    }
+                                }
+                                chart.draw(tbl, options);
+                                drawResources(_graph, _type, undefined, _c);
+                            }
+                        });
+                        chart.draw(tbl, options);
+                        drawResources(_graph, _type, undefined, "#333");
+                    },
+                    error
+                );
+            }
+
+            function drawResources(graph, type, limit, color) {
+                limit = limit || 5;
+                var target = $("#resources").empty().append(loader()),
+                    query,
+                    l_s = limit=="all" ? "":" LIMIT "+limit;
+
+                if(graph) {
+                    if(type) {
+                        query = "SELECT ?a ?b ?c WHERE { GRAPH <"+graph+"> {?a ?b ?c.{SELECT ?a WHERE {GRAPH <"+graph+"> {?a a <"+type+">}}ORDER BY ?a "+l_s+"}}}";
+                    } else {
+                        query = "SELECT ?a ?b ?c WHERE { GRAPH <"+graph+"> {?a ?b ?c.{SELECT ?a WHERE {GRAPH <"+graph+"> {?a ?b ?c.FILTER NOT EXISTS {?a a ?class}}}ORDER BY ?a "+l_s+"}}}";
+                    }
+                } else {
+                    if(type) {
+                        query = "SELECT ?a ?b ?c WHERE {?a ?b ?c.{SELECT ?a WHERE {?a a <"+type+">}ORDER BY ?a "+l_s+"}}";
+                    } else {
+                        query = "SELECT ?a ?b ?c WHERE {?a ?b ?c.{SELECT ?a WHERE {?a ?b ?c.FILTER NOT EXISTS {?a a ?class}}ORDER BY ?a "+l_s+"}}";
+                    }
+                }
+
+                function error() {
+                    target.empty().text("Could not load resources");
+                }
+
+                sparql(query, function(data) {
+                    target.empty();
+                    if(data.results.bindings.length==0) {
+                        target.text("Nothing to display");
+                        return;
+                    }
+
+                    var sel = $("<select />")
+                        .append("<option>5</option>")
+                        .append("<option>10</option>")
+                        .append("<option>25</option>")
+                        .append("<option>50</option>")
+                        .append("<option>all</option>")
+                        .change(function(){
+                            drawResources(graph,type,$(this).val(),color);
+                        });
+                    sel.val(limit);
+                    var c_s = type ? " of type "+type : " without type relation";
+                    var g_s = graph ? " in graph "+graph : "";
+
+                    target.append($("<div />").append("Show ").append(sel).append(" items"+c_s+g_s));
+
+                    var x = 0, current, table,
+                            res = $("<div />", {'style':'margin:10px'});
+
+                    for(var i=0; i<data.results.bindings.length;i++) {
+                        var d = data.results.bindings[i];
+                        if(d.a.value!=current) {
+                            x = 0;
+                            current = d.a.value;
+                            param = (current.indexOf("http://") == 0 ? "uri" : "genid");
+                            table = $("<table />", {'class':'resource', 'style':'margin-bottom:10px'})
+                                    .append($("<th/>", {'style':"background-color:"+color+" !important", 'colspan':'2'})
+                                            .append($("<a/>", {'target':'_blank', 'href':_SERVER_URL+"resource?"+param+"="+encodeURIComponent(current), 'text':current})));
+                            res.append(table);
+                        }
+                        var style = x%2==0 ? "white" : "#efefef";
+                        x++;
+                        var value = (d.c.type=="uri" ? $("<a/>", {'target':'_blank', 'href':_SERVER_URL+"resource?uri="+encodeURIComponent(d.c.value)}) : $("<span/>")).text(d.c.value);
+                        table.append($("<tr />")
+                            .append($("<td />", {'style':"background-color:"+style+";", 'text':d.b.value}))
+                            .append($("<td />", {'style':"background-color:"+style+";"}).append(value)));
+                    }
+                    target.append(res);
+
+                }, error);
+            }
+        });
+    </script>
+    <style type="text/css">
+        .resource {
+            border:1px solid #666;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .resource th {
+            background: none !important;
+            padding: 3px;
+        }
+        .resource th a {
+            color:white !important;
+            font-weight: bold !important;
+        }
+        .resource td a {
+            color:black !important;
+        }
+        .resource td {
+            padding: 2px;
+        }
+    </style>
+<!--###END_HEAD###-->
+</head>
+<body>
+  <!--###BEGIN_CONTENT###-->
+  <h1>Dataview</h1>
+  <div id="view">
+      <h2>Overview</h2>
+      <div id="overview"></div>
+      <div id="details" style="display: none;">
+          <h2>Graphs</h2>
+          <div id="graphs"></div>
+          <h2>Types</h2>
+          <div id="types"></div>
+          <h2>Resources</h2>
+          <div id="resources"></div>
+      </div>
+  </div>
+  <!--###END_CONTENT###-->
+</body>
+</html>

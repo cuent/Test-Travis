@@ -1,0 +1,82 @@
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership. The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<html>
+<head>
+<script type="text/javascript">
+	var _SERVER_URL = "http://localhost:8080/";
+</script>
+<!--###BEGIN_HEAD###-->
+<title>LDPath Test Suite</title>
+<script type="text/javascript" src="../../webjars/jquery/1.8.2/jquery.min.js"></script>
+<script type="text/javascript" src="../../webjars/marmotta.js"></script>
+
+<script type="text/javascript" src="../../webjars/codemirror/3.16/lib/codemirror.js"></script>
+<link rel="stylesheet" href="../../webjars/codemirror/3.16/lib/codemirror.css">
+
+<script src="../../webjars/codemirror/3.16/addon/hint/show-hint.js"></script>
+<link rel="stylesheet" href="../../webjars/codemirror/3.16/addon/hint/show-hint.css">
+
+<script src="../../webjars/codemirror-modes/3.16/mode/ldpath/ldpath.js"></script>
+
+<link rel="stylesheet" href="style.css" />
+<script type="text/javascript" src="ldpath.js"></script>
+<!--###END_HEAD###-->
+</head>
+<body>
+  <!--###BEGIN_CONTENT###-->
+  <h1>LDPath Test Suite</h1>
+  <p>This is the LDPath playground.</p>
+  <p>Add a number of prototypical Resources (URIs) from your dataset to test the result of your program.</p>
+  <p>Information about LDPath and Syntax of the language is available on the <a href="http://marmotta.apache.org/ldpath/">Website</a> and in the <a href="http://wiki.apache.org/marmotta/LDPath">Wiki</a>.</p>
+  <div id="playground">
+    <div id="context">
+      <h2>Test Resources</h2>
+      <p>URIs where to start evaluating the LDPath program below.</p>
+      <div id="test_context"></div>
+      <div><input id="addContextUri" type=text /><button id="addContext">Add URI</button></div>
+    </div>
+    <div id="editor">
+      <div>
+        <div class="chooseEditor"><a href="#" title="use smart editor" class="editor_cm">rich</a> | <a href="#" title="use plain text editor" class="editor_plain">plain</a></div>
+<!--
+        <label for="templates">Select Template:</label><select id="templates"></select>&nbsp;<span id="chooserStatus" class="icon loading">Loading...</span>
+-->
+        <h2>LDPath</h2>
+      </div>
+      <div>
+        <div class="editor_wrap"><textarea id="ldpath"></textarea></div>
+      </div>
+      <div class="action">
+        <button id="runTest">Test</button><span class="status icon"></span>
+      </div>
+    </div>
+    <div id="result">
+      <h2>Results</h2>
+      <div>
+        <table id="testResults" class="simple_table">
+          <thead><tr><th>&nbsp;</th><th>Field</th><th>Result</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!--###END_CONTENT###-->
+</body>
+</html>
